@@ -1,6 +1,6 @@
 import os
 from unicodedata import category
-from flask import Flask, request, abort, jsonify
+from flask import Flask, request, abort, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import random
@@ -97,12 +97,14 @@ def create_app(test_config=None):
             for category in categories:
                 all_categories[category.id] = category.type
 
-            return jsonify({
-                'success': True,
-                'questions': current_questions,
-                'total_questions': num_of_questions,
-                'categories': all_categories
-            })
+            return jsonify(
+                {
+                    'success': True,
+                    'questions': current_questions,
+                    'total_questions': num_of_questions,
+                    'categories': all_categories
+                }
+            )
 
         except Exception:
             abort(400)
@@ -155,15 +157,16 @@ def create_app(test_config=None):
     """
     @app.route('/questions', methods=['POST'])
     def create_question():
+        
         body = request.get_json()
 
-        new_question = body.get("question", None)
-        new_answer = body.get("answer", None)
-        new_difficulty = body.get("difficulty", None)
-        new_category = body.get("category", None)
+        question = body.get('question', None)
+        answer = body.get('answer', None)
+        difficulty = body.get('difficulty', None)
+        category = body.get('category', None)
 
         try:
-            question = Question(question=new_question, answer=new_answer, difficulty=new_difficulty, category=new_category)
+            question = Question(question=question, answer=answer, difficulty=difficulty, category=category)
             question.insert()
 
             selection = Question.query.order_by(Question.id).all()
@@ -201,12 +204,14 @@ def create_app(test_config=None):
         if search_term:
             search_results = Question.query.filter(Question.question.ilike(f'%{search_term}%')).all()
 
-            return jsonify({
-                'success': True,
-                'questions': [question.format() for question in search_results],
-                'total_questions': len(search_results),
-                'current_category': None
-            })
+            return jsonify(
+                {
+                    'success': True,
+                    'questions': [question.format() for question in search_results],
+                    'total_questions': len(search_results),
+                    'current_category': None
+                }
+            )
 
         abort(404)
 
@@ -227,20 +232,21 @@ def create_app(test_config=None):
     @app.route("/categories/<int:id>/questions")
     def questions_in_category(id):
 
-        # get the category by given id
         category = Category.query.filter_by(id=id).one_or_none()
 
         if category:
-            # get all questions in a category
-            questions_in_category = Question.query.filter_by(category=str(id)).all()
+            questions_in_category = Question.query.filter_by(category=id).all()
+
             current_questions = paginate_questions(request, questions_in_category)
 
-            return jsonify({
-                'success': True,
-                'questions': current_questions,
-                'total_questions': len(questions_in_category),
-                'current_category': category.type
-            })
+            return jsonify(
+                {
+                    'success': True,
+                    'questions': current_questions,
+                    'total_questions': len(questions_in_category),
+                    'current_category': category.type
+                }
+            )
         
         else:
             abort(404)
@@ -288,8 +294,44 @@ def create_app(test_config=None):
         # except Exception:
         #     abort(404)
 
-        body = request.get_json()
         
+        body = request.get_json()
+
+        quiz_category = body.get('quiz_category')
+        previous_questions = body.get('previous_questions')
+        category_id = quiz_category.get('id')
+
+        try:
+            if (category_id == 0):
+                questions = Question.query.all()
+            else:
+                questions = Question.query.filter(Question.category == category_id).all()
+            
+            next_question = questions[random.randint(0, len(questions)-1)]
+
+            while next_question.id:
+                
+                return jsonify(
+                    {
+                        'success': True,
+                        'question': {
+                            "answer": next_question.answer,
+                            "category": next_question.category,
+                            "difficulty": next_question.difficulty,
+                            "id": next_question.id,
+                            "question": next_question.question
+                        },
+                        'previousQuestion': previous_questions
+                    }
+                )
+
+                # return len(questions)
+
+        except Exception:
+            abort(422)
+
+
+
 
     """
     TEST: In the "Play" tab, after a user selects "All" or a category,
